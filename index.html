@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#efe6d6">
+<title>Creative Being</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Klee+One:wght@400;600&family=Yusei+Magic&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="world">
+    <div id="bg"></div>
+    <div id="cast"></div>
+    <div id="desk"></div>
+    <div id="props">
+      <div id="steam"><i></i><i></i></div>
+      <div id="jwrite"><div id="jarm"></div><div id="pen"></div><div id="jfingers"></div></div>
+      <div id="folder"></div>
+    </div>
+    <div id="sfx"></div>
+  </div>
+  <div id="tint"></div>
+  <p id="later"></p>
+  <div id="hud">
+    <canvas id="buckets"></canvas>
+    <button id="skip" hidden>skip ▸▸</button>
+    <button id="sound">♪ on</button>
+    <button id="tilt" hidden>tilt</button>
+  </div>
+  <section id="box" hidden>
+    <span id="name"></span>
+    <p id="text"><span id="shown"></span><span id="rest"></span></p>
+    <span id="next">▼</span>
+  </section>
+  <section id="cards" hidden><p id="hint"></p><div id="deck"></div></section>
+  <canvas id="fx"></canvas>
+  <div id="wipe"></div>
+  <div id="grain"></div>
+
+  <section id="title" class="over">
+    <div class="paper">
+      <p class="small" id="t-tag"></p>
+      <h1 id="t-name"></h1>
+      <svg class="scrib" viewBox="0 0 300 16" preserveAspectRatio="none"><path d="M4 9 C60 2 110 14 170 7 S260 4 296 9" fill="none" stroke="#e8813a" stroke-width="3" stroke-linecap="round"/></svg>
+      <p class="small" id="t-by"></p>
+      <button id="start" class="btn">Start</button>
+      <p class="tiny">sound on ♪ · tap to advance</p>
+      <button class="link" data-credits>credits · how this was made</button>
+    </div>
+  </section>
+  <section id="ending" class="over" hidden>
+    <div class="paper">
+      <span class="hanko">END</span>
+      <h2 id="e-title"></h2>
+      <div id="e-meters"></div>
+      <p id="e-closing"></p>
+      <p class="small" id="e-found"></p>
+      <ul id="e-list"></ul>
+      <button id="again" class="btn">Play again</button>
+      <button class="link" data-credits>credits · how this was made</button>
+    </div>
+  </section>
+  <section id="credits" class="over" hidden>
+    <div class="paper">
+      <h2>Credits</h2>
+      <p><b>Story and script</b> by Oliver Morrissey, Owen Dwyer and Lily Hutchinson, used word for word.</p>
+      <p><b>Made with AI.</b> The code, the characters, the sketched sets and every sound were drawn or synthesised in code by Claude (Anthropic) from the group’s direction. No image generators and no other artists’ art were used.</p>
+      <p><b>Voices</b> are babble: musical bleeps made in the browser, not recorded speech.</p>
+      <p><b>Fonts:</b> Zen Maru Gothic, Klee One, Yusei Magic (SIL Open Font License).</p>
+      <button id="close-credits" class="btn">Back</button>
+    </div>
+  </section>
+</div>
+<script src="story.js"></script>
+<script src="characters.js"></script>
+<script src="sets.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
