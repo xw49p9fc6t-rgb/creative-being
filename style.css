@@ -163,3 +163,31 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 #e-list li.now { background: var(--orange); color: #fff; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition-duration: .01s !important; } }
+
+/* ---------- paper-cutout sprites ---------- */
+.actor.cut { bottom: auto; }
+.actor.cut.jasmine { left: -55px; top: 131px; width: 246px; height: 448px; z-index: 2; }
+.actor.cut.advisor { left: 147px; top: 154px; width: 305px; height: 384px; z-index: 1; }
+.actor.cut.solo { left: 150px; top: 270px; width: 250px; height: 455px; }
+.puppet { position: absolute; inset: 0; transform-origin: 50% 85%; transition: transform .7s cubic-bezier(.3,.7,.3,1.1), translate .08s ease; }
+.puppet img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transition: opacity .25s ease; filter: drop-shadow(3px 5px 0 rgba(43,35,48,.16)); }
+.puppet img.body { animation: breathe 4.6s ease-in-out infinite; transform-origin: 50% 90%; }
+.actor.advisor .puppet img.body { animation-duration: 5.3s; }
+.puppet img.arm { transform-origin: 16% 47%; }
+.actor.talk .puppet { translate: 0 -2px; }
+.actor[data-pose=writing] .puppet { transform: rotate(1.2deg) translateY(3px); }
+.actor[data-pose=writing] img.arm { animation: armwrite .55s ease-in-out infinite; }
+@keyframes armwrite { 0%,100% { transform: rotate(0); } 35% { transform: rotate(-1.2deg); } 70% { transform: rotate(.8deg) translateX(2px); } }
+.actor[data-pose=slumped] .puppet { transform: translateY(16px) rotate(-1.5deg) scale(.98); }
+.actor[data-pose=typing] .puppet { animation: jig .26s linear infinite; }
+.actor[data-pose=chin] .puppet { transform: rotate(-2deg) translateY(3px); }
+.actor[data-pose=lean] .puppet { transform: translateY(8px) scale(1.04); }
+.actor.nod .puppet { animation: nod .8s ease-in-out; }
+@keyframes nod { 30% { translate: 0 6px; } 60% { translate: 0 -1px; } }
+.actor.shrug .puppet { animation: shrug .7s ease-in-out; }
+@keyframes shrug { 30% { translate: 0 -9px; } 65% { translate: 0 1px; } }
+#pen { position: absolute; left: 104px; top: 468px; width: 54px; height: 9px; transform: rotate(-48deg); transform-origin: 0 50%; }
+#pen.writing { animation: penwrite .55s ease-in-out infinite; }
+#pen.held { transition: none; }
+@keyframes penwrite { 0%,100% { translate: 0 0; } 35% { translate: 2px 1px; } 70% { translate: 4px -1px; } }
+.card p:empty { display: none; }

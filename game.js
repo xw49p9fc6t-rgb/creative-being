@@ -25,6 +25,30 @@
       const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     } catch (e) { AC = null; }
   }
+  /* Calm background music: a slow, soft music-box pattern over a warm pad. */
+  let musicBus = null, musicTimer = null, nextBar = 0, bar = 0;
+  const CHORDS = [[261.6, 329.6, 392.0, 493.9], [220.0, 261.6, 329.6, 392.0], [174.6, 220.0, 261.6, 329.6], [196.0, 246.9, 293.7, 392.0]];
+  function music() {
+    if (!AC || musicBus) return;
+    musicBus = AC.createGain(); musicBus.gain.value = muted ? 0 : 1;
+    const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1600;
+    const delay = AC.createDelay(); delay.delayTime.value = 0.42; const fb = AC.createGain(); fb.gain.value = 0.32;
+    musicBus.connect(lp); lp.connect(out); lp.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(out);
+    nextBar = AC.currentTime + 0.3;
+    const note = (f, t, len, vol, type) => {
+      const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + (type === "sine" ? 0.6 : 0.03)); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + len + 0.05);
+    };
+    musicTimer = setInterval(() => {
+      while (nextBar < AC.currentTime + 1) {
+        const ch = CHORDS[bar % CHORDS.length], beat = 1.1;
+        note(ch[0] / 2, nextBar, beat * 4.2, 0.03, "sine"); note(ch[2] / 2, nextBar, beat * 4.2, 0.022, "sine");
+        [0, 1, 2, 3].forEach((k) => { const order = [1, 2, 3, 2][k]; note(ch[order] * 2, nextBar + k * beat, 2.4, 0.026, "triangle"); });
+        nextBar += beat * 4; bar++;
+      }
+    }, 250);
+  }
   function hit(freq, dur, vol, q = 1.5, delay = 0) {
     if (!AC || muted) return;
     const t = AC.currentTime + delay, s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
@@ -78,40 +102,59 @@
   for (const who of ["jasmine", "advisor"]) {
     const d = document.createElement("div"); d.className = "actor " + who; $("cast").appendChild(d); actors[who] = d;
   }
+  /* The group's paper-cutout sprites, one per expression. Jasmine's arm is a
+     separate cutout drawn on the same canvas, so it lines up with her body. */
+  const SPR = { jasmine: ["neutral", "surprised", "relieved", "happy", "excited", "sad", "stressed"], advisor: ["smiling", "happy", "brow", "defeated"] };
+  const ALIAS = { jasmine: { annoyed: "stressed", hopeful: "happy" }, advisor: { neutral: "smiling", smiling: "smiling", hopeful: "happy" } };
+  const spriteSrc = (who, expr) => {
+    const e = (ALIAS[who] || {})[expr] || expr;
+    return "assets/sprites/" + who + "_" + (SPR[who].includes(e) ? e : SPR[who][0]) + ".png";
+  };
   function render(who) {
     const c = cast[who], a = actors[who];
-    const old = a.querySelectorAll("svg");
-    a.insertAdjacentHTML("beforeend", CharacterArt.draw(who, c.expr, c.outfit, NAMES[who] + ", " + c.expr));
-    a.lastElementChild.classList.add("in");
     a.dataset.pose = c.pose;
-    setTimeout(() => old.forEach((n) => n.remove()), 170);
+    let pup = a.querySelector(".puppet");
+    if (!pup) {
+      a.classList.add("cut");
+      a.innerHTML = '<div class="puppet"></div>'; pup = a.firstChild;
+      if (who === "jasmine") { const arm = new Image(); arm.className = "arm"; arm.alt = ""; pup.appendChild(arm); }
+    }
+    const arm = pup.querySelector(".arm");
+    if (arm) { const want = "assets/sprites/jasmine_arm_" + (!state.penDown && !state.future ? "bent" : "straight") + ".png"; if (arm.getAttribute("src") !== want) arm.src = want; }
+    const src = spriteSrc(who, c.expr), bodies = pup.querySelectorAll("img.body");
+    if (bodies.length && bodies[bodies.length - 1].getAttribute("src") === src) return;
+    const img = new Image(); img.className = "body"; img.alt = NAMES[who]; img.style.opacity = "0";
+    img.onload = () => {
+      pup.insertBefore(img, arm || null);
+      requestAnimationFrame(() => { img.style.opacity = "1"; });
+      setTimeout(() => bodies.forEach((n) => n.remove()), 260);
+    };
+    img.src = src;
   }
   const setFace = (who, expr) => { if (cast[who].expr !== expr) { cast[who].expr = expr; render(who); } };
-  function blinkLoop(who) {
-    setTimeout(() => { actors[who].classList.add("blink"); setTimeout(() => actors[who].classList.remove("blink"), 130); blinkLoop(who); }, 2200 + Math.random() * 3200);
-  }
+  function preload() { for (const who in SPR) for (const e of SPR[who]) new Image().src = spriteSrc(who, e); ["bent", "straight"].forEach((k) => { new Image().src = "assets/sprites/jasmine_arm_" + k + ".png"; }); }
 
   /* ------------------------------------------------- acting the directions */
-  const jwrite = $("jwrite"), pen = $("pen"), folder = $("folder");
+  const pen = $("pen"), folder = $("folder");
   let typeLoop = null, writeLoop = null;
   function setPose(who, pose) {
-    const was = cast[who].pose; cast[who].pose = pose; actors[who].dataset.pose = pose;
+    const was = cast[who].pose; cast[who].pose = pose; render(who);
     if (who === "advisor") {
       clearInterval(typeLoop);
-      if (pose === "typing") typeLoop = setInterval(() => { if (Math.random() < 0.55) snd.key(); if (Math.random() < 0.09) word("tak tak", 268, 400, -8); }, 95);
+      if (pose === "typing") typeLoop = setInterval(() => { if (Math.random() < 0.09) word("tak tak", 268, 400, -8); }, 95);
       if (pose === "chin" && was !== "chin") hit(900, 0.05, 0.15, 2);
     }
     if (who === "jasmine") {
-      jwrite.classList.toggle("slumped", pose === "slumped");
       if (pose === "slumped" && was !== "slumped") { snd.creak(); word("sigh…", 70, 170, -6); }
       syncWriting();
     }
   }
   function syncWriting() {
     const on = cast.jasmine.pose === "writing" && !state.penDown && !state.future;
-    jwrite.classList.toggle("writing", on);
+    pen.classList.toggle("held", !state.penDown);
+    pen.classList.toggle("writing", on);
     clearInterval(writeLoop);
-    if (on) writeLoop = setInterval(() => { if (Math.random() < 0.6) snd.scratch(); if (Math.random() < 0.08) word("scritch", 120, 470, 8); }, 280);
+    if (on) writeLoop = setInterval(() => { if (Math.random() < 0.08) word("scritch", 140, 440, 8); }, 280);
   }
   function word(text, x, y, r) {
     if (state.skip) return;
@@ -121,20 +164,21 @@
   }
   const acts = {
     penDrop() {
-      if (state.penDown) return; state.penDown = true; syncWriting();
+      if (state.penDown) return; state.penDown = true; syncWriting(); render("jasmine");
       setTimeout(() => {
-        jwrite.classList.add("down");
         pen.animate([
-          { transform: "rotate(-48deg)", left: "112px", top: "532px" },
-          { transform: "rotate(-4deg)", left: "120px", top: "566px", offset: 0.5, easing: "ease-out" },
-          { transform: "rotate(8deg)", left: "124px", top: "558px", offset: 0.7, easing: "ease-in" },
-          { transform: "rotate(12deg)", left: "128px", top: "568px" }
+          { transform: "rotate(-48deg)", left: "104px", top: "468px" },
+          { transform: "rotate(-4deg)", left: "118px", top: "506px", offset: 0.5, easing: "ease-out" },
+          { transform: "rotate(8deg)", left: "122px", top: "498px", offset: 0.7, easing: "ease-in" },
+          { transform: "rotate(12deg)", left: "126px", top: "508px" }
         ], { duration: state.skip || reduce ? 1 : 700, fill: "forwards", easing: "cubic-bezier(.5,0,1,.6)" });
-        if (!state.skip) { setTimeout(snd.pen, 300); setTimeout(() => word("tik!", 70, 560, -10), 300); try { navigator.vibrate && navigator.vibrate(20); } catch (e) { /* ignore */ } }
+        if (!state.skip) { setTimeout(snd.pen, 300); setTimeout(() => word("tik!", 90, 500, -10), 300); try { navigator.vibrate && navigator.vibrate(20); } catch (e) { /* ignore */ } }
       }, state.skip ? 0 : 500);
     },
     folder() { folder.classList.add("out"); snd.swish(); word("shff", 150, 470, 6); },
-    bucketTease() { buckets.tease(); }
+    bucketTease() { buckets.tease(); },
+    nod() { const a = actors.advisor; a.classList.remove("nod"); void a.offsetWidth; a.classList.add("nod"); },
+    shrug() { const a = actors.jasmine; a.classList.remove("shrug"); void a.offsetWidth; a.classList.add("shrug"); }
   };
 
   /* ----------------------------------------------------------- camera */
@@ -161,11 +205,15 @@
   async function type(page, who) {
     state.busy = true; state.fast = false;
     box.hidden = false; box.className = who; $("name").textContent = NAMES[who] || "";
-    shown.textContent = ""; rest.textContent = page;
+    const cues = {}; let clean = "";
+    page.split(/(\{\w+\})/).forEach((part) => { const m = part.match(/^\{(\w+)\}$/); if (m) cues[clean.length] = m[1]; else clean += part; });
+    page = clean;
+    const fire = (i) => { if (cues[i] && who !== "narrator") { setFace(who, cues[i]); delete cues[i]; } };
+    shown.textContent = ""; rest.textContent = page; fire(0);
     const isAI = AI_RE.test(page), q = page.trim().endsWith("?");
     for (let i = 0; i < page.length; i++) {
       if (state.fast || state.skip) break;
-      const ch = page[i];
+      const ch = page[i]; fire(i);
       shown.textContent = page.slice(0, i + 1); rest.textContent = page.slice(i + 1);
       if (/[a-z]/i.test(ch)) {
         if (who !== "narrator" && i % 2 === 0) {
@@ -175,6 +223,7 @@
       }
       await sleep(/[.!?…]/.test(ch) ? 210 : /[,;:]/.test(ch) ? 120 : 30);
     }
+    for (const k in cues) fire(+k);
     shown.innerHTML = ""; rest.textContent = "";
     if (isAI) { const span = document.createElement("span"); span.innerHTML = page.replace(/[&<>]/g, "").replace(AI_RE, '<span class="ai-word">$1</span>'); shown.appendChild(span); }
     else shown.textContent = page;
@@ -309,7 +358,7 @@
         c.style.setProperty("--c", o.color); c.style.setProperty("--r", [-1.6, 1.2, -0.8][i] + "deg"); c.style.setProperty("--d", 0.25 + i * 0.18 + "s");
         c.innerHTML = '<h3></h3><p></p><span class="stamp">CHOSEN</span>';
         c.querySelector("h3").textContent = o.title; if (o.title.length > 30) c.querySelector("h3").classList.add("long");
-        c.querySelector("p").textContent = o.desc;
+        c.querySelector("p").textContent = o.desc || "";
         deck.appendChild(c); setTimeout(snd.paper, 250 + i * 180);
         let start = null;
         c.addEventListener("pointerdown", (e) => { if (locked) return; start = { x: e.clientX, y: e.clientY }; c.setPointerCapture(e.pointerId); c.classList.add("drag"); });
@@ -351,7 +400,7 @@
     $("bg").innerHTML = Sets.themed(out.id);
     $("desk").hidden = true; $("props").hidden = true;
     actors.advisor.classList.add("away");
-    cast.jasmine.outfit = out.outfit === "cardigan" ? null : out.outfit; cast.jasmine.expr = "happy"; cast.jasmine.pose = "present"; render("jasmine");
+    cast.jasmine.expr = "happy"; cast.jasmine.pose = ""; render("jasmine");
     actors.jasmine.classList.add("solo"); cam("solo"); grade(STORY.branches[out.path].grade);
     $("later").textContent = STORY.ui.later; $("later").classList.add("on");
     $("wipe").className = "out"; await sleep(800); $("wipe").className = "";
@@ -379,23 +428,24 @@
   /* -------------------------------------------------------------- flow */
   function setup() {
     $("bg").innerHTML = Sets.office(); $("desk").innerHTML = Sets.desk();
-    $("jarm").innerHTML = Sets.arm(); $("jfingers").innerHTML = Sets.fingers(); pen.innerHTML = Sets.pen(); folder.innerHTML = Sets.folder();
-    render("jasmine"); render("advisor"); blinkLoop("jasmine"); blinkLoop("advisor"); cam("wide");
+    pen.innerHTML = Sets.pen(); preload(); folder.innerHTML = Sets.folder();
+    render("jasmine"); render("advisor"); cam("wide");
   }
   async function run() {
     $("skip").hidden = false;
     await play(STORY.opening);
-    if (state.skip) { state.skip = false; setPose("advisor", "folder"); setPose("jasmine", ""); acts.penDrop(); acts.folder(); setFace("jasmine", "neutral"); ai(false); }
+    if (state.skip) { state.skip = false; setPose("advisor", ""); setPose("jasmine", ""); acts.penDrop(); acts.folder(); setFace("jasmine", "stressed"); setFace("advisor", "smiling"); ai(false); }
     $("skip").hidden = true;
     const c1 = await decide(STORY.decision1);
     const br = STORY.branches[c1.id];
     grade(br.grade);
     await play(br.beats);
-    await beat(br.prompt);
+    setPose("advisor", ""); acts.folder();
     const c2 = await decide(br.cards);
     const out = { ...STORY.outcomes[c2.id], id: c2.id };
+    await play(out.dialogue);
     await toFuture(out);
-    await play([{ who: "narrator", cam: "solo", text: out.text }]);
+    await play([{ who: "advisor", cam: "solo", face: out.face || "happy", text: out.text }]);
     buckets.kick(0.8);
     showEnding(c2.id, out);
   }
@@ -417,9 +467,9 @@
 
   /* ---------------------------------------------------------- wiring */
   $("t-name").textContent = STORY.ui.title; $("t-tag").textContent = STORY.ui.tagline; $("t-by").textContent = STORY.ui.authors;
-  $("start").onclick = () => { audio(); $("title").hidden = true; snd.page(); run(); };
+  $("start").onclick = () => { audio(); music(); $("title").hidden = true; snd.page(); run(); };
   $("skip").onclick = () => { state.skip = true; state.fast = true; tap(); };
-  $("sound").onclick = () => { muted = !muted; $("sound").textContent = muted ? "♪ off" : "♪ on"; };
+  $("sound").onclick = () => { muted = !muted; $("sound").textContent = muted ? "♪ off" : "♪ on"; if (musicBus) musicBus.gain.setTargetAtTime(muted ? 0 : 1, AC.currentTime, 0.2); };
   $("again").onclick = () => location.reload();
   document.querySelectorAll("[data-credits]").forEach((b) => { b.onclick = () => { $("credits").hidden = false; }; });
   $("close-credits").onclick = () => { $("credits").hidden = true; };
