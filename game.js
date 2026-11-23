@@ -117,10 +117,9 @@
     if (!pup) {
       a.classList.add("cut");
       a.innerHTML = '<div class="puppet"></div>'; pup = a.firstChild;
-      if (who === "jasmine") { const arm = new Image(); arm.className = "arm"; arm.alt = ""; pup.appendChild(arm); }
     }
-    const arm = pup.querySelector(".arm");
-    if (arm) { const want = "assets/sprites/jasmine_arm_" + (!state.penDown && !state.future ? "bent" : "straight") + ".png"; if (arm.getAttribute("src") !== want) arm.src = want; }
+    if (who === "jasmine") renderArm();
+    const arm = null;
     const src = spriteSrc(who, c.expr), bodies = pup.querySelectorAll("img.body");
     if (bodies.length && bodies[bodies.length - 1].getAttribute("src") === src) return;
     const img = new Image(); img.className = "body"; img.alt = NAMES[who]; img.style.opacity = "0";
@@ -131,6 +130,21 @@
     };
     img.src = src;
   }
+  /* Jasmine's arm lives on its own layer (#armfront) so the hand and pencil sit
+     in front of the desk, on the paper. It mirrors her body's box and pose. */
+  const armfront = $("armfront"), armImg = armfront.querySelector("img.arm");
+  function renderArm() {
+    const bent = !state.armRelaxed && !state.future;
+    const want = "assets/sprites/jasmine_arm_" + (bent ? "bent" : "straight") + ".png";
+    if (armImg.getAttribute("src") !== want) { armImg.src = want; if (!bent) armImg.style.transform = ""; }
+    syncArm();
+  }
+  function syncArm() {
+    const j = actors.jasmine;
+    armfront.className = j.className.replace(/\btalk\b/g, "") + ((state.armRelaxed && !state.future) ? " behind" : "");
+    armfront.dataset.pose = j.dataset.pose || "";
+  }
+  new MutationObserver(syncArm).observe(actors.jasmine, { attributes: true, attributeFilter: ["class", "data-pose"] });
   const setFace = (who, expr) => { if (cast[who].expr !== expr) { cast[who].expr = expr; render(who); } };
   function preload() { for (const who in SPR) for (const e of SPR[who]) new Image().src = spriteSrc(who, e); ["bent", "straight"].forEach((k) => { new Image().src = "assets/sprites/jasmine_arm_" + k + ".png"; }); }
 
@@ -145,16 +159,13 @@
       if (pose === "chin" && was !== "chin") hit(900, 0.05, 0.15, 2);
     }
     if (who === "jasmine") {
-      if (pose === "slumped" && was !== "slumped") { snd.creak(); word("sigh…", 70, 170, -6); }
+      if (pose === "slumped" && was !== "slumped") { snd.creak(); word("sigh…", 30, 236, -6); }
       syncWriting();
     }
   }
   function syncWriting() {
     const on = cast.jasmine.pose === "writing" && !state.penDown && !state.future;
-    pen.classList.toggle("held", !state.penDown);
-    pen.classList.toggle("writing", on);
-    clearInterval(writeLoop);
-    if (on) writeLoop = setInterval(() => { if (Math.random() < 0.08) word("scritch", 140, 440, 8); }, 280);
+    state.writing = on;
   }
   function word(text, x, y, r) {
     if (state.skip) return;
@@ -164,15 +175,19 @@
   }
   const acts = {
     penDrop() {
-      if (state.penDown) return; state.penDown = true; syncWriting(); render("jasmine");
+      if (state.penDown) return; state.penDown = true; syncWriting();
+      if (state.skip) writer.finish();
       setTimeout(() => {
+        // the hand lets go and the pencil falls at the same moment
+        const T = writer.tip;
+        state.armRelaxed = true; renderArm();
         pen.animate([
-          { transform: "rotate(-48deg)", left: "104px", top: "468px" },
-          { transform: "rotate(-4deg)", left: "118px", top: "506px", offset: 0.5, easing: "ease-out" },
-          { transform: "rotate(8deg)", left: "122px", top: "498px", offset: 0.7, easing: "ease-in" },
-          { transform: "rotate(12deg)", left: "126px", top: "508px" }
+          { transform: "rotate(" + (writer.angle || -142) + "deg)", left: T.x + "px", top: (T.y - 4.5) + "px" },
+          { transform: "rotate(-168deg)", left: (T.x + 8) + "px", top: "548px", offset: 0.5, easing: "ease-out" },
+          { transform: "rotate(-158deg)", left: (T.x + 11) + "px", top: "541px", offset: 0.7, easing: "ease-in" },
+          { transform: "rotate(-172deg)", left: (T.x + 14) + "px", top: "551px" }
         ], { duration: state.skip || reduce ? 1 : 700, fill: "forwards", easing: "cubic-bezier(.5,0,1,.6)" });
-        if (!state.skip) { setTimeout(snd.pen, 300); setTimeout(() => word("tik!", 90, 500, -10), 300); try { navigator.vibrate && navigator.vibrate(20); } catch (e) { /* ignore */ } }
+        if (!state.skip) { setTimeout(snd.pen, 300); setTimeout(() => word("tik!", T.x + 6, 528, -10), 300); try { navigator.vibrate && navigator.vibrate(20); } catch (e) { /* ignore */ } }
       }, state.skip ? 0 : 500);
     },
     folder() { folder.classList.add("out"); snd.swish(); word("shff", 150, 470, 6); },
@@ -181,8 +196,87 @@
     shrug() { const a = actors.jasmine; a.classList.remove("shrug"); void a.offsetWidth; a.classList.add("shrug"); }
   };
 
+  /* ----------------------------------------------------- writing on the form
+     A scribbled handwriting path is laid out on the form's three lines. The
+     pencil tip follows it, the arm cutout slides with the tip, and pencil marks
+     are drawn on the paper exactly where the tip has been. */
+  const writer = (() => {
+    const SX = 103.5, SY = 478.5, ROT = -3 * Math.PI / 180, COS = Math.cos(ROT), SIN = Math.sin(ROT);
+    const REST = { x: 127, y: 506.3 };
+    const WRIST = { x: 106, y: 494.3 };          // end of the sleeve, in the arm's drawn position
+    const PX = -106.5, PY = 97.6, PP = PX * PX + PY * PY;   // how the wrist moves when the arm turns at the shoulder            // where the tip sits when the arm is in its drawn position
+    const toStage = (x, y) => ({ x: SX + x * COS - y * SIN, y: SY + x * SIN + y * COS });
+    const cv = $("ink"), cx = cv.getContext("2d"); cv.width = 312; cv.height = 198;
+    cx.setTransform(3, 0, 0, 3, 0, 0); cx.lineCap = cx.lineJoin = "round";
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const pts = [];
+    const add = (x, y, down) => pts.push({ x, y, down });
+    [29, 40, 51].forEach((base, li) => {
+      const x0 = 22, w = li === 2 ? 22 : 30; let s = 0;
+      add(x0, base - 2, false);
+      while (s < w) {
+        const wl = Math.min(w - s, 6 + rnd() * 8);
+        let h = 0.8 + rnd() * 0.8;
+        for (let t = 0; t <= wl; t += 0.3) {
+          const ph = t * 1.9;
+          if (Math.cos(ph) > 0.98) h = rnd() < 0.18 ? 2.1 : 0.8 + rnd() * 0.8;   // a new letter, sometimes a tall one
+          add(x0 + s + t + 0.7 * Math.sin(ph), base - 1 - 1.8 * h * (0.5 - 0.5 * Math.cos(ph)), true);
+        }
+        s += wl + 3.5;
+        if (s < w) add(x0 + s - 1.5, base - 2, false);
+      }
+    });
+    [29, 40, 51].forEach((base) => { add(10.5, base - 3.5, false); add(10.5, base - 3.5, true); add(12.3, base - 1.2, true); add(16.2, base - 7.4, true); });
+    add(50, 49, false);
+
+    let i = 0, f = 0, lifted = 0, idle = 0;
+    const api = { tip: { x: REST.x, y: REST.y } };
+    function place() {
+      const a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)];
+      const x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f - lifted;
+      const T = toStage(x, y); api.tip = T;
+      if (!state.penDown) {
+        // the arm follows a third of the pencil's travel, mostly by turning at the shoulder,
+        // so it stays attached; the pencil pivots in her sleeve for the rest
+        const ex = (T.x - REST.x) * 0.3, ey = (T.y - REST.y) * 0.3;
+        const th = (ex * PX + ey * PY) / PP, rx = ex - th * PX, ry = ey - th * PY;
+        if (!state.armRelaxed && !state.future) armImg.style.transform = "translate(" + rx.toFixed(2) + "px," + ry.toFixed(2) + "px) rotate(" + th.toFixed(4) + "rad)";
+        const gx = WRIST.x - 2 + ex, gy = WRIST.y - 6 + ey;
+        api.angle = Math.atan2(gy - T.y, gx - T.x) * 180 / Math.PI;
+        pen.style.left = T.x + "px"; pen.style.top = (T.y - 4.5) + "px";
+        pen.style.transform = "rotate(" + api.angle.toFixed(2) + "deg)";
+      }
+    }
+    function ink(a, b, f0, f1) {
+      cx.strokeStyle = "rgba(52,46,60,.82)"; cx.lineWidth = 0.75;
+      cx.beginPath(); cx.moveTo(a.x + (b.x - a.x) * f0, a.y + (b.y - a.y) * f0); cx.lineTo(a.x + (b.x - a.x) * f1, a.y + (b.y - a.y) * f1); cx.stroke();
+    }
+    api.place = place;
+    api.step = (dt) => {
+      if (!state.started || state.penDown || state.future) return;
+      if (!state.writing) { lifted += (0 - lifted) * Math.min(1, dt * 8); place(); return; }
+      if (i >= pts.length - 1) {                                   // finished: rest the pencil, tap it now and then
+        idle += dt; lifted = Math.max(0, Math.sin(idle * 3.2)) * (idle % 3 < 0.9 ? 1.6 : 0); place(); return;
+      }
+      let budget = dt * 16;
+      while (budget > 0 && i < pts.length - 1) {
+        const a = pts[i], b = pts[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y) || 0.001, fast = b.down ? 1 : 2.6;
+        const take = Math.min(budget * fast, (1 - f) * len), f1 = f + take / len;
+        if (a.down && b.down) ink(a, b, f, f1);
+        budget -= take / fast; f = f1;
+        if (f >= 0.999) { i++; f = 0; }
+      }
+      const up = !pts[Math.min(i + 1, pts.length - 1)].down;
+      lifted += ((up ? 1.8 : 0) - lifted) * Math.min(1, dt * 14);
+      if (Math.random() < dt * 0.5) word("scritch", api.tip.x + 12, api.tip.y - 30, 8);
+      place();
+    };
+    api.finish = () => { while (i < pts.length - 1) { const a = pts[i], b = pts[i + 1]; if (a.down && b.down) ink(a, b, f, 1); i++; f = 0; } place(); };
+    return api;
+  })();
+
   /* ----------------------------------------------------------- camera */
-  const CAMS = { wide: [195, 422, 1], jasmine: [86, 250, 1.35], advisor: [304, 250, 1.35], desk: [160, 470, 1.3], solo: [195, 400, 1] };
+  const CAMS = { wide: [195, 422, 1], jasmine: [100, 320, 1.35], advisor: [280, 300, 1.35], desk: [140, 505, 1.3], solo: [195, 400, 1] };
   function cam(name) {
     const [x, y, s] = CAMS[name] || CAMS.wide;
     const tx = Math.min(0, Math.max(W - W * s, W / 2 - x * s)), ty = Math.min(0, Math.max(H - H * s, 330 - y * s));
@@ -428,10 +522,11 @@
   /* -------------------------------------------------------------- flow */
   function setup() {
     $("bg").innerHTML = Sets.office(); $("desk").innerHTML = Sets.desk();
-    pen.innerHTML = Sets.pen(); preload(); folder.innerHTML = Sets.folder();
+    pen.innerHTML = Sets.pen(); $("sheet").insertAdjacentHTML("afterbegin", Sets.sheet()); writer.place(); preload(); folder.innerHTML = Sets.folder();
     render("jasmine"); render("advisor"); cam("wide");
   }
   async function run() {
+    state.started = true;
     $("skip").hidden = false;
     await play(STORY.opening);
     if (state.skip) { state.skip = false; setPose("advisor", ""); setPose("jasmine", ""); acts.penDrop(); acts.folder(); setFace("jasmine", "stressed"); setFace("advisor", "smiling"); ai(false); }
@@ -459,7 +554,7 @@
       const d = state.meters[k] - state.shown[k], before = Math.round(state.shown[k]);
       state.shown[k] = Math.abs(d) < 0.2 ? state.meters[k] : state.shown[k] + d * Math.min(1, dt * 2.4);
     }
-    buckets.draw(dt); drawParts(dt);
+    buckets.draw(dt); drawParts(dt); writer.step(dt);
     requestAnimationFrame(loop);
   }
   window.__frames = () => { const a = frames.slice(60).sort((x, y) => x - y); return a.length ? { n: a.length, median: +a[a.length >> 1].toFixed(1), p95: +a[Math.floor(a.length * 0.95)].toFixed(1), worst: +a[a.length - 1].toFixed(1) } : null; };

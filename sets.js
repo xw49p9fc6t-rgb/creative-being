@@ -84,8 +84,9 @@
       '<path d="M296 30 l4 9 l10 1 l-8 6 l3 10 l-9 -6 l-9 6 l3 -10 l-8 -6 l10 -1 z" fill="#ffd166" stroke="' + INK + '" stroke-width="1"/>' +
       '<rect x="262" y="52" width="16" height="12" rx="3" fill="#ff8fa3" stroke="' + INK + '" stroke-width=".9" transform="rotate(-10 270 58)"/>';
     // mug
+    g += '<g transform="translate(26 0)">';
     g += '<path d="M182 52 h30 l-2 34 h-26 z" fill="#5d8fbf" stroke="' + INK + '" stroke-width="1.6"/><ellipse cx="197" cy="52" rx="15" ry="4" fill="#4a2a1c" stroke="' + INK + '" stroke-width="1.3"/>' +
-      '<path d="M212 60 c10 0 10 18 -1 18" fill="none" stroke="' + INK + '" stroke-width="1.6"/><path d="M188 60 v18" stroke="#fff" stroke-width="2" opacity=".5"/>';
+      '<path d="M212 60 c10 0 10 18 -1 18" fill="none" stroke="' + INK + '" stroke-width="1.6"/><path d="M188 60 v18" stroke="#fff" stroke-width="2" opacity=".5"/></g>';
     // pencil cup
     g += '<path d="M352 50 h30 l-3 42 h-24 z" fill="#8a5aa8" stroke="' + INK + '" stroke-width="1.6"/>' +
       '<path d="M358 50 l-4 -26 M366 50 v-30 M374 50 l5 -24" stroke-width="4" stroke="#e8b83e"/><path d="M366 50 v-30" stroke="#d6534f" stroke-width="4"/>';
@@ -94,12 +95,6 @@
       '<text x="305" y="122" text-anchor="middle" font-family="Zen Maru Gothic, sans-serif" font-weight="700" font-size="8.5" letter-spacing="1.5" fill="#2b2330">ADVISOR</text>';
     // paper stack
     g += '<path d="M-6 74 h46 l-4 24 h-44 z" fill="#fbf7ef" stroke="' + INK + '" stroke-width="1.2"/><path d="M-6 80 h48 l-3 22 h-46 z" fill="#f3ead8" stroke="' + INK + '" stroke-width="1.2"/>';
-    // the 5-year plan
-    g += '<g transform="rotate(-5 104 124)"><rect x="40" y="96" width="132" height="70" fill="#fffdf8" stroke="' + INK + '" stroke-width="1.5"/>' +
-      '<text x="50" y="110" font-family="Zen Maru Gothic, sans-serif" font-weight="700" font-size="9" letter-spacing="1" fill="#2b2330">5-YEAR PLAN</text>' +
-      lines("M50 114 H162", 1.2, 0.8) + lines("M62 126 H160 M62 138 H160 M62 150 H140", 0.8, 0.45) +
-      '<rect x="50" y="120" width="7" height="7" fill="none" stroke="' + INK + '" stroke-width=".9"/><rect x="50" y="132" width="7" height="7" fill="none" stroke="' + INK + '" stroke-width=".9"/><rect x="50" y="144" width="7" height="7" fill="none" stroke="' + INK + '" stroke-width=".9"/>' +
-      lines("M51 123 l2 3 l4 -6", 1.2, 0.9) + lines("M64 124 q8 -4 14 0 t16 0 t12 -2", 1, 0.8) + "</g>";
     g += "</g>";
     return '<svg viewBox="0 0 390 434" preserveAspectRatio="xMidYMin slice" aria-hidden="true">' + DEFS + g + "</svg>";
   }
@@ -270,5 +265,13 @@
     }
   };
   function themed(key) { return (SCENES[key] || SCENES.uvic)(); }
-  window.Sets = { office: office, desk: desk, arm: arm, fingers: fingers, pen: pen, folder: folder, future: future, themed: themed };
+  /* The 5-year plan, drawn on its own so Jasmine can write on it (128 x 66). */
+  function sheet() {
+    var o = '<rect x=".75" y=".75" width="102.5" height="64.5" fill="#fffdf8" stroke="' + INK + '" stroke-width="1.5"/>' +
+      '<text x="9" y="12.5" font-family="Zen Maru Gothic, sans-serif" font-weight="700" font-size="8.5" letter-spacing="1" fill="#2b2330">5-YEAR PLAN</text>' +
+      lines("M9 16 H95", 1.2, 0.8);
+    [29, 40, 51].forEach(function (b) { o += '<rect x="9" y="' + (b - 7) + '" width="7" height="7" fill="none" stroke="' + INK + '" stroke-width=".9"/>' + lines("M20 " + b + " H95", 0.8, 0.4); });
+    return '<svg viewBox="0 0 104 66" aria-hidden="true">' + o + "</svg>";
+  }
+  window.Sets = { sheet: sheet, office: office, desk: desk, arm: arm, fingers: fingers, pen: pen, folder: folder, future: future, themed: themed };
 })();
