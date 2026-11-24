@@ -116,7 +116,7 @@
     let pup = a.querySelector(".puppet");
     if (!pup) {
       a.classList.add("cut");
-      a.innerHTML = '<div class="puppet"></div>'; pup = a.firstChild;
+      a.innerHTML = '<div class="puppet"><div class="mouth"><i></i></div></div>'; pup = a.firstChild;
     }
     if (who === "jasmine") renderArm();
     const arm = null;
@@ -124,7 +124,7 @@
     if (bodies.length && bodies[bodies.length - 1].getAttribute("src") === src) return;
     const img = new Image(); img.className = "body"; img.alt = NAMES[who]; img.style.opacity = "0";
     img.onload = () => {
-      pup.insertBefore(img, arm || null);
+      pup.insertBefore(img, pup.querySelector(".mouth"));
       requestAnimationFrame(() => { img.style.opacity = "1"; });
       setTimeout(() => bodies.forEach((n) => n.remove()), 260);
     };
@@ -296,6 +296,13 @@
     if (cur.trim()) out.push(cur.trim());
     return out;
   }
+  const MOUTH = { a: "m-a", o: "m-o", e: "m-e", i: "m-e", u: "m-u", y: "m-e" };
+  function mouth(who, ch) {
+    const m = actors[who] && actors[who].querySelector(".mouth"); if (!m) return;
+    const c = ch.toLowerCase();
+    const shape = MOUTH[c] || (/[a-z]/.test(c) ? (/[mbp]/.test(c) ? "" : "m-h") : "");
+    m.className = "mouth" + (shape ? " " + shape : "");
+  }
   async function type(page, who) {
     state.busy = true; state.fast = false;
     box.hidden = false; box.className = who; $("name").textContent = NAMES[who] || "";
@@ -308,6 +315,7 @@
     for (let i = 0; i < page.length; i++) {
       if (state.fast || state.skip) break;
       const ch = page[i]; fire(i);
+      if (who !== "narrator") mouth(who, ch);
       shown.textContent = page.slice(0, i + 1); rest.textContent = page.slice(i + 1);
       if (/[a-z]/i.test(ch)) {
         if (who !== "narrator" && i % 2 === 0) {
@@ -321,6 +329,7 @@
     shown.innerHTML = ""; rest.textContent = "";
     if (isAI) { const span = document.createElement("span"); span.innerHTML = page.replace(/[&<>]/g, "").replace(AI_RE, '<span class="ai-word">$1</span>'); shown.appendChild(span); }
     else shown.textContent = page;
+    if (who !== "narrator") mouth(who, " ");
     box.classList.add("done"); state.busy = false;
   }
   function tap(e) {
